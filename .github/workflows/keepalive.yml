@@ -1,0 +1,25 @@
+name: Keep Deployments Alive
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Wake Deployment Dashboard
+        run: |
+          curl \
+            --retry 5 \
+            --retry-delay 5 \
+            --max-time 30 \
+            -L \
+            https://keepalive.streamlit.app/
