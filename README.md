@@ -22,7 +22,7 @@ The dashboard concurrently checks all configured deployments, displays their hea
 
 ## Screenshot
 
-> *(Add a screenshot here)*
+> <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8e567003-6b6f-46ab-97d9-b2967ecfefc4" />
 
 ---
 
