@@ -31,10 +31,8 @@ The dashboard concurrently checks all configured deployments, displays their hea
 Clone the repository and install the dependencies.
 
 ```bash
-git clone <repo-url>
-cd DeploymentHealthDashboard
-
-pip install -r requirements.txt
+git clone https://github.com/DevBhuyan/KeepAlive
+cd KeepAlive
 ```
 
 ---
@@ -88,4 +86,4 @@ Each refresh:
 
 ## License
 
-MIT License
+Apache 2.0 License
