@@ -6,6 +6,7 @@ Created on Mon Jul 13 21:16:43 2026
 @author: dev
 """
 
+from urllib.parse import urlparse
 import json
 import time
 from datetime import datetime
@@ -154,26 +155,98 @@ def sidebar():
                     st.rerun()
 
 
-def main():
+def wake_streamlit(url):
 
-    st.title("🩺 Deployment Health Dashboard")
-    st.caption("Checks the health of all deployed open-source projects.")
+    url = url.rstrip("/") + "/api/v2/app/resume"
 
-    left, right = st.columns([1, 5])
+    headers = {
+        "x-csrf-token": "NFBIVFNobWkxRU84M1BuWHBhNTJDOGRXdFRrOVpUMjZiGBEsMgcfE10gHk9GBjsBNhR/eS1OCwMzATkAIy5IVA==",
+    }
 
-    with left:
-        if st.button("🔄 Refresh"):
-            st.rerun()
+    cookies = {
+        "_streamlit_csrf": "MTc4NDMxNjQyOXxJbFpyYUZwbFIwWjJZMjV3YzFwV1JqTmtWbHBXVjFWYU1WTnJkSFZrYlRsVlVqRldVMDlZYkRabGJVazlJZz09fLo1j7A8nsBGpmdTDKBFCNQPxcuqbUc0_kC87tL7FFjr",
+    }
 
-    with right:
-        show_iframe = st.checkbox("Embed previews (if allowed)", value=False)
+    requests.post(url,
+                  headers=headers,
+                  cookies=cookies)
 
-    # ==========================================================
-    # HEALTH CHECK
-    # ==========================================================
 
-    def check(name, url):
-        start = time.perf_counter()
+def _check_streamlit_status(name, url, start):
+
+    try:
+
+        response = requests.get(
+            url.rstrip("/") + "/api/v2/app/status",
+            timeout=TIMEOUT,
+        )
+
+        latency = (time.perf_counter() - start) * 1000
+
+        response.raise_for_status()
+
+        payload = response.json()
+
+        raw = payload.get("status")
+
+        if raw in [0, 5]:
+            state = "healthy"
+
+        elif raw == 12:
+            state = "sleeping"
+            wake_streamlit(url)
+
+        else:
+            state = f"streamlit:{raw}"
+
+        return {
+            "name": name,
+            "url": url,
+            "status": state,
+            "code": response.status_code,
+            "streamlit_status": raw,
+            "latency": latency,
+            "headers": dict(response.headers),
+            "time": datetime.now().strftime("%H:%M:%S"),
+        }
+
+    except requests.exceptions.Timeout:
+
+        return {
+            "name": name,
+            "url": url,
+            "status": "timeout",
+            "code": "-",
+            "latency": None,
+            "headers": {},
+            "time": datetime.now().strftime("%H:%M:%S"),
+        }
+
+
+def check(name, url):
+
+    start = time.perf_counter()
+
+    hostname = urlparse(url).hostname or ""
+
+    if hostname.endswith(".streamlit.app"):
+
+        try:
+            return _check_streamlit_status(name, url, start)
+
+        except Exception as e:
+
+            return {
+                "name": name,
+                "url": url,
+                "status": "error",
+                "code": str(type(e).__name__),
+                "latency": None,
+                "headers": {},
+                "time": datetime.now().strftime("%H:%M:%S"),
+            }
+
+    else:
 
         try:
             response = requests.get(
@@ -224,6 +297,152 @@ def main():
                 "time": datetime.now().strftime("%H:%M:%S"),
             }
 
+
+def display_status(result: dict,
+                   show_iframe: bool = False):
+
+    if result["status"] == "healthy":
+        icon = "🟢"
+        colour = "green"
+
+    elif result["status"] == "timeout":
+        icon = "🟡"
+        colour = "orange"
+
+    else:
+        icon = "🔴"
+        colour = "red"
+
+    with st.container(border=True):
+
+        col1, col2 = st.columns([4, 1])
+
+        with col1:
+
+            st.markdown(
+                f"### {icon} {result['name']}"
+            )
+
+            st.write(result["url"])
+
+        with col2:
+
+            st.link_button("Open", result["url"])
+
+        c1, c2, c3 = st.columns(3)
+
+        status_text = {
+            200: "OK",
+            404: "Not Found",
+            500: "Server Error",
+        }.get(result["code"], "")
+
+        c1.metric(
+            "HTTP",
+            result["code"],
+            status_text,
+        )
+
+        if result["latency"]:
+
+            lat = result["latency"]
+
+            if lat < 1000:
+                delta = "🟢 Fast"
+            elif lat < 3000:
+                delta = "🟡 Warm"
+            else:
+                delta = "🔴 Cold Start"
+
+            c2.metric(
+                "Latency",
+                f"{lat:.0f} ms",
+                delta,
+            )
+
+        else:
+
+            c2.metric(
+                "Latency",
+                "--",
+            )
+
+        c3.metric(
+            "Checked",
+            result["time"],
+        )
+
+        if result["status"] == "healthy":
+
+            st.success("Healthy")
+
+        elif result["status"] == "timeout":
+
+            st.warning("Waiting / Timed out")
+
+        else:
+
+            st.error("Unhealthy")
+
+        with st.expander("Details"):
+
+            st.write(f"**Status:** {result['status']}")
+            st.write(f"**HTTP:** {result['code']}")
+            st.write(f"**Latency:** {result['latency']:.0f} ms")
+            st.write(f"**Checked:** {result['time']}")
+
+            with st.expander("Headers"):
+                st.json(result["headers"])
+
+        if show_iframe:
+
+            try:
+                st.iframe(
+                    result["url"],
+                    height=600,
+                )
+
+            except:
+                st.info("Embedding is not supported by this app")
+
+
+def show_summary(results: dict):
+
+    healthy = sum(r["status"] == "healthy" for r in results)
+    unhealthy = len(results) - healthy
+
+    latencies = [r["latency"] for r in results if r["latency"]]
+
+    avg_latency = sum(latencies) / len(latencies) if latencies else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Projects", len(results))
+    c2.metric("Healthy", healthy)
+    c3.metric("Issues", unhealthy)
+    c4.metric("Avg Latency", f"{avg_latency:.0f} ms")
+
+    st.divider()
+
+
+def main():
+
+    st.title("🩺 Deployment Health Dashboard")
+    st.caption("Checks the health of all deployed open-source projects.")
+
+    left, right = st.columns([1, 5])
+
+    with left:
+        if st.button("🔄 Refresh"):
+            st.rerun()
+
+    with right:
+        show_iframe = st.checkbox("Embed previews (if allowed)", value=False)
+
+    # ==========================================================
+    # HEALTH CHECK
+    # ==========================================================
+
     # ==========================================================
     # RUN ALL CHECKS CONCURRENTLY
     # ==========================================================
@@ -243,21 +462,7 @@ def main():
     # SUMMARY
     # ==========================================================
 
-    healthy = sum(r["status"] == "healthy" for r in results)
-    unhealthy = len(results) - healthy
-
-    latencies = [r["latency"] for r in results if r["latency"]]
-
-    avg_latency = sum(latencies) / len(latencies) if latencies else 0
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric("Projects", len(results))
-    c2.metric("Healthy", healthy)
-    c3.metric("Issues", unhealthy)
-    c4.metric("Avg Latency", f"{avg_latency:.0f} ms")
-
-    st.divider()
+    show_summary(results)
 
     # ==========================================================
     # PROJECT CARDS
@@ -265,109 +470,7 @@ def main():
 
     for result in sorted(results, key=lambda x: x["name"]):
 
-        if result["status"] == "healthy":
-            icon = "🟢"
-            colour = "green"
-
-        elif result["status"] == "timeout":
-            icon = "🟡"
-            colour = "orange"
-
-        else:
-            icon = "🔴"
-            colour = "red"
-
-        with st.container(border=True):
-
-            col1, col2 = st.columns([4, 1])
-
-            with col1:
-
-                st.markdown(
-                    f"### {icon} {result['name']}"
-                )
-
-                st.write(result["url"])
-
-            with col2:
-
-                st.link_button("Open", result["url"])
-
-            c1, c2, c3 = st.columns(3)
-
-            status_text = {
-                200: "OK",
-                404: "Not Found",
-                500: "Server Error",
-            }.get(result["code"], "")
-
-            c1.metric(
-                "HTTP",
-                result["code"],
-                status_text,
-            )
-
-            if result["latency"]:
-
-                lat = result["latency"]
-
-                if lat < 1000:
-                    delta = "🟢 Fast"
-                elif lat < 3000:
-                    delta = "🟡 Warm"
-                else:
-                    delta = "🔴 Cold Start"
-
-                c2.metric(
-                    "Latency",
-                    f"{lat:.0f} ms",
-                    delta,
-                )
-
-            else:
-
-                c2.metric(
-                    "Latency",
-                    "--",
-                )
-
-            c3.metric(
-                "Checked",
-                result["time"],
-            )
-
-            if result["status"] == "healthy":
-
-                st.success("Healthy")
-
-            elif result["status"] == "timeout":
-
-                st.warning("Waiting / Timed out")
-
-            else:
-
-                st.error("Unhealthy")
-
-            with st.expander("Details"):
-
-                st.write(f"**Status:** {result['status']}")
-                st.write(f"**HTTP:** {result['code']}")
-                st.write(f"**Latency:** {result['latency']:.0f} ms")
-                st.write(f"**Checked:** {result['time']}")
-
-                with st.expander("Headers"):
-                    st.json(result["headers"])
-
-            if show_iframe:
-
-                try:
-                    st.iframe(
-                        result["url"],
-                        height=600,
-                    )
-
-                except:
-                    st.info("Embedding is not supported by this app")
+        display_status(result, show_iframe)
 
     st.divider()
 
