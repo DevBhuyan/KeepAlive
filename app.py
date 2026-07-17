@@ -6,6 +6,8 @@ Created on Mon Jul 13 21:16:43 2026
 @author: dev
 """
 
+import os
+from dotenv import load_dotenv
 from urllib.parse import urlparse
 import json
 import time
@@ -16,6 +18,7 @@ import streamlit as st
 from streamlit import session_state as ss
 from streamlit_autorefresh import st_autorefresh
 
+load_dotenv()
 st_autorefresh(interval=300000, key="refresh")  # every 5 minutes
 
 
@@ -160,11 +163,11 @@ def wake_streamlit(url):
     url = url.rstrip("/") + "/api/v2/app/resume"
 
     headers = {
-        "x-csrf-token": "NFBIVFNobWkxRU84M1BuWHBhNTJDOGRXdFRrOVpUMjZiGBEsMgcfE10gHk9GBjsBNhR/eS1OCwMzATkAIy5IVA==",
+        "x-csrf-token": os.environ['X_CSRF_TOKEN'],
     }
 
     cookies = {
-        "_streamlit_csrf": "MTc4NDMxNjQyOXxJbFpyYUZwbFIwWjJZMjV3YzFwV1JqTmtWbHBXVjFWYU1WTnJkSFZrYlRsVlVqRldVMDlZYkRabGJVazlJZz09fLo1j7A8nsBGpmdTDKBFCNQPxcuqbUc0_kC87tL7FFjr",
+        "_streamlit_csrf": os.environ['STREAMLIT_CSRF'],
     }
 
     requests.post(url,
