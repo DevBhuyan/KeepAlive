@@ -6,6 +6,11 @@ Created on Mon Jul 13 21:16:43 2026
 @author: dev
 """
 
+from http.cookies import SimpleCookie
+from symbols import (
+    EMOJIS,
+    sidebar_header
+)
 import os
 from dotenv import load_dotenv
 from urllib.parse import urlparse
@@ -18,13 +23,9 @@ import streamlit as st
 from streamlit import session_state as ss
 from streamlit_autorefresh import st_autorefresh
 
-load_dotenv()
+
+load_dotenv(override=True)
 st_autorefresh(interval=300000, key="refresh")  # every 5 minutes
-
-
-# ==========================================================
-# CONFIG
-# ==========================================================
 
 
 PROJECT_FILE = "projects.json"
@@ -32,6 +33,23 @@ PROJECT_FILE = "projects.json"
 
 if "editing" not in ss:
     ss.editing = {}
+
+
+if "projects" not in ss:
+
+    with open(PROJECT_FILE) as f:
+        ss.projects = json.load(f)
+
+URLS = ss.projects
+
+TIMEOUT = 15
+
+
+st.set_page_config(
+    page_title="Deployment Health Dashboard",
+    page_icon="🩺",
+    layout="wide",
+)
 
 
 def save_projects():
@@ -50,28 +68,9 @@ def start_edit(name=None):
     }
 
 
-if "projects" not in ss:
-
-    with open(PROJECT_FILE) as f:
-        ss.projects = json.load(f)
-
-URLS = ss.projects
-
-TIMEOUT = 15
-
-# ==========================================================
-# PAGE
-# ==========================================================
-
-st.set_page_config(
-    page_title="Deployment Health Dashboard",
-    page_icon="🩺",
-    layout="wide",
-)
-
-
 def sidebar():
-    st.sidebar.header("⚙️ Projects")
+
+    st.sidebar.header(sidebar_header)
 
     title = (
         "✏ Edit Project"
@@ -129,14 +128,6 @@ def sidebar():
 
             with st.sidebar.container(border=True):
 
-                EMOJIS = {
-                    "OpenBalancer": "🚀",
-                    "Portfolio": "🌐",
-                    "Finance Toolkit": "💰",
-                    "Ethical AI Dashboard": "⚖️",
-                    "RAG4ALL": "📚",
-                }
-
                 st.markdown(
                     f"**{EMOJIS.get(project,'📦')} {project}**"
                 )
@@ -160,22 +151,44 @@ def sidebar():
 
 def wake_streamlit(url):
 
+    status = _check_streamlit_status(url)
+    if 'x-csrf-token' in status['headers'] and 'set-cookie' in status['headers']:
+
+        X_CSRF_TOKEN = status['headers']['x-csrf-token']
+        cookies = status['headers']['set-cookie']
+
+        STREAMLIT_CSRF = SimpleCookie().load(cookies)["_streamlit_csrf"].value
+
+        headers = {
+            "x-csrf-token": X_CSRF_TOKEN
+        }
+
+        cookies = {
+            "_streamlit_csrf": STREAMLIT_CSRF
+        }
+
+    else:
+        headers = {
+            "x-csrf-token": os.environ['X_CSRF_TOKEN']
+        }
+
+        cookies = {
+            "_streamlit_csrf": os.environ['STREAMLIT_CSRF']
+        }
+
     url = url.rstrip("/") + "/api/v2/app/resume"
 
-    headers = {
-        "x-csrf-token": os.environ['X_CSRF_TOKEN'],
-    }
-
-    cookies = {
-        "_streamlit_csrf": os.environ['STREAMLIT_CSRF'],
-    }
-
-    requests.post(url,
-                  headers=headers,
-                  cookies=cookies)
+    return requests.post(url,
+                         headers=headers,
+                         cookies=cookies)
 
 
-def _check_streamlit_status(name, url, start):
+def _check_streamlit_status(url,
+                            name: str = None,
+                            start=time.perf_counter()):
+
+    if not name:
+        name = url
 
     try:
 
@@ -235,7 +248,7 @@ def check(name, url):
     if hostname.endswith(".streamlit.app"):
 
         try:
-            return _check_streamlit_status(name, url, start)
+            return _check_streamlit_status(url, name, start)
 
         except Exception as e:
 
