@@ -157,7 +157,10 @@ def wake_streamlit(url):
         X_CSRF_TOKEN = status['headers']['x-csrf-token']
         cookies = status['headers']['set-cookie']
 
-        STREAMLIT_CSRF = SimpleCookie().load(cookies)["_streamlit_csrf"].value
+        cookie = SimpleCookie()
+        cookie.load(cookies)
+
+        STREAMLIT_CSRF = cookie["_streamlit_csrf"].value
 
         headers = {
             "x-csrf-token": X_CSRF_TOKEN

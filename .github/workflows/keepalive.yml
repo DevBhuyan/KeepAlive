@@ -7,13 +7,20 @@ on:
     - cron: "*/15 * * * *"
 
 jobs:
-  ping:
+  wake-dashboard:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Wake Deployment Dashboard
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          wget \
-            --tries=5 \
-            --timeout=30 \
-            https://keepalive.streamlit.app/
+          pip install requests
+
+      - name: Wake KeepAlive dashboard
+        run: |
+          python scripts/wake_streamlit.py https://keepalive.streamlit.app
