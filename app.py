@@ -42,7 +42,7 @@ if "projects" not in ss:
 
 URLS = ss.projects
 
-TIMEOUT = 15
+TIMEOUT = 10
 
 
 st.set_page_config(
