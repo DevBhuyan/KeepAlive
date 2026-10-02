@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Created on Mon Jul 13 21:16:43 2026
 
@@ -7,10 +6,7 @@ Created on Mon Jul 13 21:16:43 2026
 """
 
 from http.cookies import SimpleCookie
-from symbols import (
-    EMOJIS,
-    sidebar_header
-)
+from symbols import EMOJIS, sidebar_header
 import os
 from dotenv import load_dotenv
 from urllib.parse import urlparse
@@ -68,11 +64,7 @@ def start_edit(name=None):
 def sidebar():
     st.sidebar.header(sidebar_header)
 
-    title = (
-        "✏ Edit Project"
-        if "editing" in ss
-        else "➕ Add Project"
-    )
+    title = "✏ Edit Project" if "editing" in ss else "➕ Add Project"
 
     st.sidebar.subheader(title)
 
@@ -114,9 +106,7 @@ def sidebar():
 
         for project in sorted(URLS):
             with st.sidebar.container(border=True):
-                st.markdown(
-                    f"**{EMOJIS.get(project,'📦')} {project}**"
-                )
+                st.markdown(f"**{EMOJIS.get(project, '📦')} {project}**")
                 st.caption(URLS[project])
 
                 c1, c2 = st.sidebar.columns(2)
@@ -133,9 +123,9 @@ def sidebar():
 
 def wake_streamlit(url, initial_headers):
     """Wakes up a sleeping Streamlit app using headers extracted during status check."""
-    if 'x-csrf-token' in initial_headers and 'set-cookie' in initial_headers:
-        X_CSRF_TOKEN = initial_headers['x-csrf-token']
-        cookies = initial_headers['set-cookie']
+    if "x-csrf-token" in initial_headers and "set-cookie" in initial_headers:
+        X_CSRF_TOKEN = initial_headers["x-csrf-token"]
+        cookies = initial_headers["set-cookie"]
 
         cookie = SimpleCookie()
         cookie.load(cookies)
@@ -144,14 +134,15 @@ def wake_streamlit(url, initial_headers):
         headers = {"x-csrf-token": X_CSRF_TOKEN}
         cookies = {"_streamlit_csrf": STREAMLIT_CSRF}
     else:
-        headers = {"x-csrf-token": os.environ.get('X_CSRF_TOKEN', '')}
-        cookies = {"_streamlit_csrf": os.environ.get('STREAMLIT_CSRF', '')}
+        headers = {"x-csrf-token": os.environ.get("X_CSRF_TOKEN", "")}
+        cookies = {"_streamlit_csrf": os.environ.get("STREAMLIT_CSRF", "")}
 
     resume_url = url.rstrip("/") + "/api/v2/app/resume"
 
     try:
-        requests.post(resume_url, headers=headers,
-                      cookies=cookies, timeout=TIMEOUT)
+        requests.post(
+            resume_url, headers=headers, cookies=cookies, timeout=TIMEOUT
+        )
     except Exception:
         pass  # Suppress wake errors to keep dashboard responsive
 
@@ -226,7 +217,7 @@ def check(name, url):
         try:
             response = requests.get(
                 url,
-                timeout=TIMEOUT if 'render' not in hostname else 120,
+                timeout=TIMEOUT if "render" not in hostname else 120,
                 allow_redirects=True,
             )
 
@@ -282,13 +273,20 @@ def display_status(result: dict, show_iframe: bool = False):
             st.link_button("Open", result["url"])
 
         c1, c2, c3 = st.columns(3)
-        status_text = {200: "OK", 404: "Not Found",
-                       500: "Server Error"}.get(result["code"], "")
+        status_text = {200: "OK", 404: "Not Found", 500: "Server Error"}.get(
+            result["code"], ""
+        )
         c1.metric("HTTP", result["code"], status_text)
 
         if result["latency"]:
             lat = result["latency"]
-            delta = "🟢 Fast" if lat < 1000 else "🟡 Warm" if lat < 3000 else "🔴 Cold Start"
+            delta = (
+                "🟢 Fast"
+                if lat < 1000
+                else "🟡 Warm"
+                if lat < 3000
+                else "🔴 Cold Start"
+            )
             c2.metric("Latency", f"{lat:.0f} ms", delta)
 
 
@@ -299,17 +297,24 @@ st.title("🩺 Deployment Health Dashboard")
 
 if not URLS:
     st.info(
-        "No projects added yet. Use the sidebar to add your first project deployment.")
+        "No projects added yet. Use the sidebar to add your first project deployment."
+    )
 else:
     # Use modern st.status layout block to handle multi-threading errors cleanly
-    with st.status("Checking deployment health...", expanded=True) as status_box:
+    with st.status(
+        "Checking deployment health...", expanded=True
+    ) as status_box:
         with ThreadPoolExecutor(max_workers=max(1, len(URLS))) as executor:
             # Map items across the thread pool cleanly
-            results = list(executor.map(
-                lambda item: check(item[0], item[1]), URLS.items()))
+            results = list(
+                executor.map(
+                    lambda item: check(item[0], item[1]), URLS.items()
+                )
+            )
 
-        status_box.update(label="All checks completed!",
-                          state="complete", expanded=False)
+        status_box.update(
+            label="All checks completed!", state="complete", expanded=False
+        )
 
     # Render results grid
     for res in results:
