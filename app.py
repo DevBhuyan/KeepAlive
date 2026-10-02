@@ -226,7 +226,7 @@ def check(name, url):
         try:
             response = requests.get(
                 url,
-                timeout=TIMEOUT,
+                timeout=TIMEOUT if 'render' not in hostname else 120,
                 allow_redirects=True,
             )
 
